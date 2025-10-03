@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     gcc \
     python3-dev \
-    musl-dev \
     libpq-dev \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -27,5 +26,3 @@ COPY . /app/
 RUN chmod +x /app/init.sh
 
 EXPOSE 80
-
-ENTRYPOINT ["/app/init.sh"]
