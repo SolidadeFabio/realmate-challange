@@ -4,11 +4,17 @@ from rest_framework.views import APIView
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.pagination import PageNumberPagination
+from django.utils import timezone
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
-from .models import Conversation
+from .models import Conversation, ConversationStatus
 from .serializers import (
     ConversationSerializer,
-    WebhookEventSerializer
+    ConversationListSerializer,
+    WebhookEventSerializer,
+    MessageSerializer
 )
 from .services import WebhookProcessor
 from .exceptions import (
@@ -21,13 +27,18 @@ from .exceptions import (
 logger = logging.getLogger(__name__)
 
 
+class ConversationPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class WebhookView(APIView):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.processor = WebhookProcessor()
 
     def post(self, request, *args, **kwargs):
-
         logger.info(f"Received webhook: {request.data}")
 
         serializer = WebhookEventSerializer(data=request.data)
@@ -87,9 +98,7 @@ class ConversationDetailView(RetrieveAPIView):
     serializer_class = ConversationSerializer
     lookup_field = 'id'
 
-
     def retrieve(self, request, *args, **kwargs):
-
         try:
             instance = self.get_object()
             serializer = self.get_serializer(instance)
@@ -110,5 +119,81 @@ class ConversationDetailView(RetrieveAPIView):
                     "error": "Conversation not found",
                     "details": f"Conversation with id {conversation_id} does not exist"
                 },
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class ConversationListAPIView(APIView):
+    pagination_class = ConversationPagination
+
+    def get(self, request):
+        conversations = Conversation.objects.prefetch_related('messages').all().order_by('-created_at')
+
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(conversations, request)
+
+        if page is not None:
+            serializer = ConversationListSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
+
+        serializer = ConversationListSerializer(conversations, many=True)
+        return Response(serializer.data)
+
+
+class ConversationMessagesAPIView(APIView):
+    def get(self, request, conversation_id):
+        try:
+            conversation = Conversation.objects.prefetch_related('messages').get(id=conversation_id)
+            messages = conversation.messages.all().order_by('timestamp')
+            message_serializer = MessageSerializer(messages, many=True)
+
+            return Response({
+                'status': conversation.status,
+                'created_at': conversation.created_at,
+                'updated_at': conversation.updated_at,
+                'closed_at': conversation.closed_at,
+                'messages': message_serializer.data
+            })
+        except Conversation.DoesNotExist:
+            return Response(
+                {'error': f'Conversation {conversation_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class CloseConversationAPIView(APIView):
+    def post(self, request, conversation_id):
+        try:
+            conversation = Conversation.objects.get(id=conversation_id)
+
+            if conversation.is_closed():
+                return Response(
+                    {'error': 'Conversation is already closed'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            conversation.status = ConversationStatus.CLOSED
+            conversation.closed_at = timezone.now()
+            conversation.save()
+
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                'conversations',
+                {
+                    'type': 'conversation_updated',
+                    'conversation': {
+                        'id': str(conversation.id),
+                        'status': conversation.status,
+                        'closed_at': conversation.closed_at.isoformat() if conversation.closed_at else None
+                    }
+                }
+            )
+
+            serializer = ConversationSerializer(conversation)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Conversation.DoesNotExist:
+            return Response(
+                {'error': f'Conversation {conversation_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )

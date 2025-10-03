@@ -6,11 +6,11 @@ making it easier to test and maintain.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 from django.db import transaction
-from django.utils import timezone
-
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from .models import Conversation, Message, ConversationStatus, MessageDirection
 from .exceptions import (
     ConversationClosedException,
@@ -19,6 +19,7 @@ from .exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+channel_layer = get_channel_layer()
 
 
 class ConversationService:
@@ -37,6 +38,22 @@ class ConversationService:
         )
 
         logger.info(f"Created conversation {conversation_id}")
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                'conversations',
+                {
+                    'type': 'new_conversation',
+                    'conversation': {
+                        'id': str(conversation.id),
+                        'status': conversation.status,
+                        'created_at': conversation.created_at.isoformat() if conversation.created_at else None,
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send WebSocket event: {e}")
+
         return conversation
 
     @staticmethod
@@ -63,6 +80,22 @@ class ConversationService:
         conversation.save()
 
         logger.info(f"Closed conversation {conversation_id}")
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                'conversations',
+                {
+                    'type': 'conversation_updated',
+                    'conversation': {
+                        'id': str(conversation.id),
+                        'status': conversation.status,
+                        'closed_at': conversation.closed_at.isoformat() if conversation.closed_at else None,
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send WebSocket event: {e}")
+
         return conversation
 
     @staticmethod
@@ -125,6 +158,24 @@ class MessageService:
         logger.info(
             f"Created {direction} message {message_id} in conversation {conversation_id}"
         )
+
+        try:
+            async_to_sync(channel_layer.group_send)(
+                'conversations',
+                {
+                    'type': 'new_message',
+                    'message': {
+                        'id': str(message.id),
+                        'conversation_id': str(message.conversation_id),
+                        'direction': message.direction,
+                        'content': message.content,
+                        'timestamp': message.timestamp.isoformat() if message.timestamp else None,
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Failed to send WebSocket event: {e}")
+
         return message
 
 

@@ -455,3 +455,325 @@ class ConversationDetailViewTestCase(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertIn('detail', response.data)
+
+
+class WebhookDataValidationTestCase(APITestCase):
+    def test_new_message_missing_required_fields(self):
+        conversation_id = str(uuid.uuid4())
+
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        msg_data_no_content = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', msg_data_no_content, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        msg_data_no_direction = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "content": "Test message",
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', msg_data_no_direction, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        msg_data_no_conversation_id = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": "Test message"
+            }
+        }
+
+        response = self.client.post('/webhook/', msg_data_no_conversation_id, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_uuid_format(self):
+        invalid_uuid_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": "not-a-valid-uuid"}
+        }
+
+        response = self.client.post('/webhook/', invalid_uuid_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('error', response.data)
+
+        conversation_id = str(uuid.uuid4())
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        invalid_message_id = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": "invalid-uuid-123",
+                "direction": "RECEIVED",
+                "content": "Test",
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', invalid_message_id, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_timestamp_format(self):
+        invalid_timestamp_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "not-a-timestamp",
+            "data": {"id": str(uuid.uuid4())}
+        }
+
+        response = self.client.post('/webhook/', invalid_timestamp_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        invalid_timestamp_data2 = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-13-45T25:70:99",
+            "data": {"id": str(uuid.uuid4())}
+        }
+
+        response = self.client.post('/webhook/', invalid_timestamp_data2, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_message_direction(self):
+        conversation_id = str(uuid.uuid4())
+
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        invalid_direction_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "INVALID_DIRECTION",
+                "content": "Test message",
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', invalid_direction_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('error', response.data)
+
+    def test_empty_content_message(self):
+        conversation_id = str(uuid.uuid4())
+
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        empty_content_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": "",
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', empty_content_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        whitespace_content_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:43.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": "   \t\n  ",
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', whitespace_content_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_extremely_long_content(self):
+        conversation_id = str(uuid.uuid4())
+
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        long_content = "A" * 10000
+        long_content_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": long_content,
+                "conversation_id": conversation_id
+            }
+        }
+
+        response = self.client.post('/webhook/', long_content_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        message = Message.objects.get(id=long_content_data['data']['id'])
+        self.assertEqual(message.content, long_content)
+
+    def test_missing_type_field(self):
+        data_without_type = {
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": str(uuid.uuid4())}
+        }
+
+        response = self.client.post('/webhook/', data_without_type, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_missing_timestamp_field(self):
+        data_without_timestamp = {
+            "type": "NEW_CONVERSATION",
+            "data": {"id": str(uuid.uuid4())}
+        }
+
+        response = self.client.post('/webhook/', data_without_timestamp, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_missing_data_field(self):
+        data_without_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308"
+        }
+
+        response = self.client.post('/webhook/', data_without_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_extra_fields_in_new_conversation(self):
+        data_with_extra_fields = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": "Should not be here"
+            }
+        }
+
+        response = self.client.post('/webhook/', data_with_extra_fields, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_extra_fields_in_close_conversation(self):
+        conversation_id = str(uuid.uuid4())
+
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        close_with_extra_fields = {
+            "type": "CLOSE_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:45.349308",
+            "data": {
+                "id": conversation_id,
+                "content": "Should not be here",
+                "direction": "SENT"
+            }
+        }
+
+        response = self.client.post('/webhook/', close_with_extra_fields, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ConversationDetailValidationTestCase(APITestCase):
+    def test_get_conversation_with_invalid_uuid(self):
+        invalid_uuid = "not-a-valid-uuid-format"
+        response = self.client.get(f'/conversations/{invalid_uuid}/')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_message_order_in_conversation(self):
+        conversation_id = str(uuid.uuid4())
+
+        conv_data = {
+            "type": "NEW_CONVERSATION",
+            "timestamp": "2025-02-21T10:20:41.349308",
+            "data": {"id": conversation_id}
+        }
+        self.client.post('/webhook/', conv_data, format='json')
+
+        msg1_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:45.000000",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": "Third message",
+                "conversation_id": conversation_id
+            }
+        }
+
+        msg2_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:42.000000",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "SENT",
+                "content": "First message",
+                "conversation_id": conversation_id
+            }
+        }
+
+        msg3_data = {
+            "type": "NEW_MESSAGE",
+            "timestamp": "2025-02-21T10:20:43.000000",
+            "data": {
+                "id": str(uuid.uuid4()),
+                "direction": "RECEIVED",
+                "content": "Second message",
+                "conversation_id": conversation_id
+            }
+        }
+
+        self.client.post('/webhook/', msg1_data, format='json')
+        self.client.post('/webhook/', msg2_data, format='json')
+        self.client.post('/webhook/', msg3_data, format='json')
+
+        response = self.client.get(f'/conversations/{conversation_id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        messages = response.data['data']['messages']
+        self.assertEqual(len(messages), 3)
+
+        self.assertEqual(messages[0]['content'], "First message")
+        self.assertEqual(messages[1]['content'], "Second message")
+        self.assertEqual(messages[2]['content'], "Third message")

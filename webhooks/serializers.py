@@ -32,13 +32,40 @@ class ConversationSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
+class ConversationListSerializer(serializers.ModelSerializer):
+    last_message = serializers.SerializerMethodField()
+    message_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conversation
+        fields = [
+            'id',
+            'status',
+            'created_at',
+            'updated_at',
+            'closed_at',
+            'message_count',
+            'last_message'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_last_message(self, obj):
+        last_message = obj.messages.order_by('-timestamp').first()
+        if last_message:
+            return MessageSerializer(last_message).data
+        return None
+
+    def get_message_count(self, obj):
+        return obj.messages.count()
+
+
 class WebhookDataSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     direction = serializers.ChoiceField(
         choices=MessageDirection.choices,
         required=False
     )
-    content = serializers.CharField(required=False)
+    content = serializers.CharField(required=False, allow_blank=False)
     conversation_id = serializers.UUIDField(required=False)
 
 
@@ -58,7 +85,6 @@ class WebhookEventSerializer(serializers.Serializer):
         data = attrs.get('data', {})
 
         if event_type == 'NEW_CONVERSATION':
-            # Only id is required
             if any(key in data for key in ['direction', 'content', 'conversation_id']):
                 raise serializers.ValidationError(
                     "NEW_CONVERSATION should only contain 'id' field"
@@ -70,6 +96,12 @@ class WebhookEventSerializer(serializers.Serializer):
             if missing_fields:
                 raise serializers.ValidationError(
                     f"NEW_MESSAGE requires these fields: {', '.join(missing_fields)}"
+                )
+
+            content = data.get('content', '')
+            if not content or not content.strip():
+                raise serializers.ValidationError(
+                    "Message content cannot be empty or contain only whitespace"
                 )
 
         elif event_type == 'CLOSE_CONVERSATION':

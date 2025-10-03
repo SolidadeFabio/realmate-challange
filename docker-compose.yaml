@@ -2,9 +2,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-realmate_db}
+      POSTGRES_USER: ${POSTGRES_USER:-realmate_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-realmate_pass}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -15,30 +15,107 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   web:
     build: .
-    volumes:
-      - .:/app
-    ports:
-      - "80:80"
+    command: /app/init.sh
+    expose:
+      - "8000"
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - DOCKER_ENV=${DOCKER_ENV}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - APP_ENV=${APP_ENV:-development}
+      - DOCKER_ENV=${DOCKER_ENV:-true}
+      - POSTGRES_DB=${POSTGRES_DB:-realmate_db}
+      - POSTGRES_USER=${POSTGRES_USER:-realmate_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-realmate_pass}
       - POSTGRES_HOST=db
-      - POSTGRES_PORT=${POSTGRES_PORT}
-      - DEBUG=${DEBUG}
-      - SECRET_KEY=${SECRET_KEY}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME}
-      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL}
-      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-default-key}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-*}
+      - DJANGO_SUPERUSER_USERNAME=${DJANGO_SUPERUSER_USERNAME:-admin}
+      - DJANGO_SUPERUSER_EMAIL=${DJANGO_SUPERUSER_EMAIL:-admin@example.com}
+      - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD:-admin123}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     stdin_open: true
     tty: true
 
+  celery:
+    build: .
+    command: celery -A realmate_challenge worker --loglevel=info --concurrency=4
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - DOCKER_ENV=${DOCKER_ENV:-true}
+      - POSTGRES_DB=${POSTGRES_DB:-realmate_db}
+      - POSTGRES_USER=${POSTGRES_USER:-realmate_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-realmate_pass}
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - DEBUG=${DEBUG:-False}
+      - SECRET_KEY=${SECRET_KEY:-django-insecure-default-key}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+
+  flower:
+    build: .
+    command: celery -A realmate_challenge flower --port=5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - .:/app
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - web
+    environment:
+      - NODE_ENV=${APP_ENV:-development}
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+      - frontend
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+
 volumes:
   postgres_data:
+  static_volume:
+  media_volume:

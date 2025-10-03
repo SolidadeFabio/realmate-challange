@@ -36,5 +36,5 @@ poetry run python manage.py collectstatic --noinput || true
 
 echo "Initialization complete!"
 
-echo "Starting Django server..."
-exec poetry run python manage.py runserver 0.0.0.0:80
+echo "Starting Django server with Daphne (ASGI for WebSocket support)..."
+exec poetry run daphne -b 0.0.0.0 -p 8000 realmate_challenge.asgi:application
