@@ -1,0 +1,25 @@
+<div class="toast-container position-fixed top-0 end-0 p-3">
+  @for (toast of toasts$ | async; track toast.id) {
+    <div class="toast show"
+         [class.bg-danger]="toast.type === 'error'"
+         [class.bg-success]="toast.type === 'success'"
+         [class.bg-info]="toast.type === 'info'"
+         role="alert">
+      <div class="toast-header">
+        <strong class="me-auto">
+          @if (toast.type === 'error') {
+            <i class="bi bi-exclamation-triangle-fill"></i> Erro
+          } @else if (toast.type === 'success') {
+            <i class="bi bi-check-circle-fill"></i> Sucesso
+          } @else {
+            <i class="bi bi-info-circle-fill"></i> Informação
+          }
+        </strong>
+        <button type="button" class="btn-close" (click)="close(toast.id)"></button>
+      </div>
+      <div class="toast-body text-white">
+        {{ toast.message }}
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,73 @@
+.conversation-list-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.list-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+.list-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.list-content::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 3px;
+}
+
+.conversation-item {
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  scroll-margin-top: 1rem;
+}
+
+.conversation-item:hover {
+  background-color: #f8f9fa !important;
+  transform: translateX(2px);
+}
+
+.conversation-item.active {
+  background-color: #e7f3ff !important;
+  border-left: 4px solid #007bff;
+  transform: translateX(0);
+}
+
+.conversation-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #007bff 0%, #0056b3 100%);
+  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideIn {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
