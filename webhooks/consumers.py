@@ -64,11 +64,13 @@ class ConversationConsumer(AsyncWebsocketConsumer):
             elif message_type == 'send_message':
                 conversation_id = data.get('conversation_id')
                 content = data.get('content')
+                client_id = data.get('client_id')
 
                 message = await self.create_message(conversation_id, content)
 
                 message['persona_id'] = self.persona_id
                 message['persona_name'] = self.persona_name
+                message['client_id'] = client_id
 
                 await self.channel_layer.group_send(
                     self.room_group_name,
@@ -76,7 +78,8 @@ class ConversationConsumer(AsyncWebsocketConsumer):
                         'type': 'new_message',
                         'message': message,
                         'persona_id': self.persona_id,
-                        'persona_name': self.persona_name
+                        'persona_name': self.persona_name,
+                        'client_id': client_id
                     }
                 )
 
@@ -160,22 +163,10 @@ class ConversationConsumer(AsyncWebsocketConsumer):
         if conversation.is_closed():
             raise Exception("Cannot send message to closed conversation")
 
-
-        last_message = conversation.messages.order_by('-timestamp').first()
-
-        if not last_message:
-            direction = MessageDirection.RECEIVED
-        else:
-            direction = (
-                MessageDirection.SENT
-                if last_message.direction == MessageDirection.RECEIVED
-                else MessageDirection.RECEIVED
-            )
-
         message = Message.objects.create(
             id=uuid.uuid4(),
             conversation=conversation,
-            direction=direction,
+            direction=MessageDirection.SENT,
             content=content,
             timestamp=timezone.now()
         )

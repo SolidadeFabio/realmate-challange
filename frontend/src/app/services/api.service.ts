@@ -27,4 +27,10 @@ export class ApiService {
       this.http.post<any>(`${this.apiUrl}/conversations/${conversationId}/close/`, {})
     );
   }
+
+  async createConversation(content: string, clientId: string): Promise<any> {
+    return firstValueFrom(
+      this.http.post<any>(`${this.apiUrl}/conversations/`, { content, client_id: clientId })
+    );
+  }
 }

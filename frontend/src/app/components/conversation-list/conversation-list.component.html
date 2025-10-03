@@ -7,6 +7,9 @@
           <i class="bi" [class.bi-wifi]="connectionStatus" [class.bi-wifi-off]="!connectionStatus"></i>
           {{ connectionStatus ? 'Online' : 'Offline' }}
         </span>
+        <button class="btn btn-sm btn-success" (click)="onNewConversation()" title="Nova Conversa">
+          <i class="bi bi-plus-lg"></i>
+        </button>
         <button class="btn btn-sm btn-outline-primary" (click)="onRefresh()" [disabled]="!connectionStatus || loading">
           <i class="bi bi-arrow-clockwise" [class.spinning]="loading"></i>
         </button>
@@ -96,3 +99,9 @@
     }
   </div>
 </div>
+
+<app-new-conversation-modal
+  [show]="showNewConversationModal"
+  (created)="onConversationCreated($event)"
+  (cancelled)="onNewConversationCancelled()">
+</app-new-conversation-modal>

@@ -17,6 +17,7 @@ export interface Message {
   content: string;
   timestamp: string | null;
   created_at: string | null;
+  client_id?: string;
 }
 
 export interface ConversationFilters {

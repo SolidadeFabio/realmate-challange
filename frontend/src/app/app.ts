@@ -117,4 +117,8 @@ export class App implements OnInit, OnDestroy {
   onLoadMore(): void {
     this.websocketService.loadMoreConversations();
   }
+
+  onNewConversation(content: string): void {
+    this.websocketService.createConversation(content);
+  }
 }

@@ -10,7 +10,8 @@
         [hasMore]="hasMore"
         (conversationSelected)="onConversationSelected($event)"
         (refresh)="onRefresh()"
-        (loadMore)="onLoadMore()">
+        (loadMore)="onLoadMore()"
+        (newConversation)="onNewConversation($event)">
       </app-conversation-list>
     </div>
 

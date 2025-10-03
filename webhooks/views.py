@@ -16,13 +16,14 @@ from .serializers import (
     WebhookEventSerializer,
     MessageSerializer
 )
-from .services import WebhookProcessor
+from .services import WebhookProcessor, ConversationService, MessageService
 from .exceptions import (
     ConversationNotFoundException,
     ConversationClosedException,
     InvalidWebhookDataException,
     DuplicateEntityException
 )
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +128,62 @@ class ConversationListAPIView(ListAPIView):
     queryset = Conversation.objects.prefetch_related('messages').all().order_by('-created_at')
     serializer_class = ConversationListSerializer
     pagination_class = ConversationPagination
+
+    def post(self, request, *args, **kwargs):
+        content = request.data.get('content', '').strip()
+        client_id = request.data.get('client_id')
+
+        if not content:
+            return Response(
+                {'error': 'Content is required for first message'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        conversation_id = uuid.uuid4()
+        message_id = uuid.uuid4()
+
+        try:
+            conversation = ConversationService.create_conversation(
+                str(conversation_id),
+                timezone.now()
+            )
+
+            message = MessageService.create_message(
+                str(message_id),
+                str(conversation_id),
+                'SENT',
+                content,
+                timezone.now()
+            )
+
+            if client_id:
+                channel_layer = get_channel_layer()
+                async_to_sync(channel_layer.group_send)(
+                    'conversations',
+                    {
+                        'type': 'new_message',
+                        'message': {
+                            'id': str(message.id),
+                            'conversation_id': str(message.conversation_id),
+                            'direction': message.direction,
+                            'content': message.content,
+                            'timestamp': message.timestamp.isoformat() if message.timestamp else None,
+                            'created_at': message.created_at.isoformat() if message.created_at else None,
+                            'client_id': client_id
+                        },
+                        'client_id': client_id
+                    }
+                )
+
+            serializer = ConversationSerializer(conversation)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"Error creating conversation: {e}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class ConversationMessagesAPIView(APIView):

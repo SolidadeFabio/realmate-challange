@@ -10,6 +10,7 @@ export class WebSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
   private readonly wsUrl = this.getWebSocketUrl();
   private readonly reconnectDelay = 3000;
+  private readonly clientId = this.generateClientId();
 
   private currentPage = 1;
   private hasMorePages = true;
@@ -49,6 +50,10 @@ export class WebSocketService implements OnDestroy {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
     return `${protocol}//${host}:80/ws/conversations/`;
+  }
+
+  private generateClientId(): string {
+    return `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
   }
 
   private async loadInitialData(): Promise<void> {
@@ -142,10 +147,16 @@ export class WebSocketService implements OnDestroy {
     const currentConv = this.currentConversationSubject.value;
     const isCurrentConversation = currentConv && currentConv.id === message.conversation_id;
 
+    const isOwnMessage = message.client_id === this.clientId;
+    const adjustedMessage = {
+      ...message,
+      direction: isOwnMessage ? message.direction : this.invertDirection(message.direction)
+    };
+
     if (isCurrentConversation) {
       const updatedConversation = {
         ...currentConv,
-        messages: [...(currentConv.messages || []), message]
+        messages: [...(currentConv.messages || []), adjustedMessage]
       };
       this.currentConversationSubject.next(updatedConversation);
     }
@@ -154,11 +165,11 @@ export class WebSocketService implements OnDestroy {
     const updatedConversations = conversations.map(conv => {
       if (conv.id === message.conversation_id) {
         const shouldIncrementUnread =
-          message.direction === 'RECEIVED' && !isCurrentConversation;
+          adjustedMessage.direction === 'RECEIVED' && !isCurrentConversation;
 
         return {
           ...conv,
-          last_message: message,
+          last_message: adjustedMessage,
           message_count: (conv.message_count || 0) + 1,
           unread_count: shouldIncrementUnread
             ? (conv.unread_count || 0) + 1
@@ -168,6 +179,10 @@ export class WebSocketService implements OnDestroy {
       return conv;
     });
     this.conversationsSubject.next(updatedConversations);
+  }
+
+  private invertDirection(direction: 'SENT' | 'RECEIVED'): 'SENT' | 'RECEIVED' {
+    return direction === 'SENT' ? 'RECEIVED' : 'SENT';
   }
 
   private addNewConversation(conversation: Conversation): void {
@@ -246,7 +261,8 @@ export class WebSocketService implements OnDestroy {
     const message = {
       type: 'send_message',
       conversation_id: conversationId,
-      content: content.trim()
+      content: content.trim(),
+      client_id: this.clientId
     };
 
     try {
@@ -317,6 +333,18 @@ export class WebSocketService implements OnDestroy {
 
   public hasMore(): boolean {
     return this.hasMorePages;
+  }
+
+  public async createConversation(content: string): Promise<void> {
+    this.loadingSubject.next(true);
+    try {
+      await this.apiService.createConversation(content, this.clientId);
+      this.successSubject.next('Conversa criada com sucesso');
+    } catch (error) {
+      this.errorSubject.next('Failed to create conversation');
+    } finally {
+      this.loadingSubject.next(false);
+    }
   }
 
   public disconnect(): void {
