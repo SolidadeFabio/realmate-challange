@@ -60,7 +60,7 @@ services:
 
   celery:
     build: .
-    command: celery -A realmate_challenge worker --loglevel=info --concurrency=4
+    command: celery -A realmate_challenge worker --loglevel=info
     depends_on:
       db:
         condition: service_healthy
