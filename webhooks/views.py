@@ -1,7 +1,7 @@
 import logging
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.generics import RetrieveAPIView
+from rest_framework.generics import RetrieveAPIView, ListAPIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -123,21 +123,10 @@ class ConversationDetailView(RetrieveAPIView):
             )
 
 
-class ConversationListAPIView(APIView):
+class ConversationListAPIView(ListAPIView):
+    queryset = Conversation.objects.prefetch_related('messages').all().order_by('-created_at')
+    serializer_class = ConversationListSerializer
     pagination_class = ConversationPagination
-
-    def get(self, request):
-        conversations = Conversation.objects.prefetch_related('messages').all().order_by('-created_at')
-
-        paginator = self.pagination_class()
-        page = paginator.paginate_queryset(conversations, request)
-
-        if page is not None:
-            serializer = ConversationListSerializer(page, many=True)
-            return paginator.get_paginated_response(serializer.data)
-
-        serializer = ConversationListSerializer(conversations, many=True)
-        return Response(serializer.data)
 
 
 class ConversationMessagesAPIView(APIView):
