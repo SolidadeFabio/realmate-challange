@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 
 
@@ -13,6 +14,22 @@ class MessageDirection(models.TextChoices):
     RECEIVED = 'RECEIVED', 'Received'
 
 
+class Contact(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, null=True, blank=True)
+    phone = models.CharField(max_length=50, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'contacts'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name or self.phone or str(self.id)
+
+
 class Conversation(models.Model):
     id = models.UUIDField(
         primary_key=True,
@@ -23,6 +40,20 @@ class Conversation(models.Model):
         max_length=10,
         choices=ConversationStatus.choices,
         default=ConversationStatus.OPEN
+    )
+    contact = models.ForeignKey(
+        Contact,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='conversations'
+    )
+    assigned_user = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='assigned_conversations'
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -71,6 +102,16 @@ class Message(models.Model):
     )
     content = models.TextField()
     timestamp = models.DateTimeField()
+    author_user = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='authored_messages'
+    )
+    is_internal = models.BooleanField(
+        default=False,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

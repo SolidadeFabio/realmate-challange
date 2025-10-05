@@ -61,7 +61,7 @@ class Command(BaseCommand):
         return modes[choice]
 
     def populate_batch_mode(self):
-        console.print("\n[bold green]📦 BATCH MODE[/bold green]")
+        console.print("\n[bold green]BATCH MODE[/bold green]")
 
         total = IntPrompt.ask(
             "[cyan]How many conversations to create?[/cyan]",
@@ -101,10 +101,10 @@ class Command(BaseCommand):
                     description=f"[green]✓[/green] Batch {i+1}/{num_batches} dispatched (Task: {result.id[:8]}...)"
                 )
 
-        console.print(f"\n[bold green]✅ All {num_batches} batches dispatched successfully![/bold green]")
+        console.print(f"\n[bold green]All {num_batches} batches dispatched successfully![/bold green]")
 
     def populate_concurrent_mode(self):
-        console.print("\n[bold green]🚀 CONCURRENT MODE[/bold green]")
+        console.print("\n[bold green]CONCURRENT MODE[/bold green]")
 
         num_conversations = IntPrompt.ask(
             "[cyan]How many conversations to create?[/cyan]",
@@ -134,11 +134,11 @@ class Command(BaseCommand):
         job = group(tasks)
         result = job.apply_async()
 
-        console.print(f"\n[bold green]✅ Dispatched {len(tasks)} concurrent tasks![/bold green]")
+        console.print(f"\n[bold green]Dispatched {len(tasks)} concurrent tasks![/bold green]")
         console.print(f"[dim]Group ID: {result.id}[/dim]")
 
     def populate_peak_mode(self):
-        console.print("\n[bold green]⚡ PEAK HOUR SIMULATION MODE[/bold green]")
+        console.print("\n[bold green]PEAK HOUR SIMULATION MODE[/bold green]")
 
         duration_minutes = IntPrompt.ask(
             "[cyan]Peak duration in minutes?[/cyan]",
@@ -167,7 +167,7 @@ class Command(BaseCommand):
                 conversations_per_minute=conversations_per_minute
             )
 
-        console.print(f"\n[bold green]✅ Peak simulation started![/bold green]")
+        console.print(f"\n[bold green]Peak simulation started![/bold green]")
         console.print(f"[dim]Task ID: {result.id}[/dim]")
         console.print(f"[dim]Expected conversations: ~{total}[/dim]")
 
@@ -182,7 +182,7 @@ class Command(BaseCommand):
         }
 
         table = Table(
-            title="📊 Current Database Statistics",
+            title="Current Database Statistics",
             box=box.ROUNDED,
             border_style="cyan"
         )
@@ -204,7 +204,7 @@ class Command(BaseCommand):
         console.print(table)
 
         console.print(Panel(
-            "[bold green]✅ Tasks dispatched successfully![/bold green]\n"
+            "[bold green]Tasks dispatched successfully![/bold green]\n"
             "[cyan]Monitor progress at:[/cyan] http://localhost:5555",
             border_style="green",
             box=box.ROUNDED

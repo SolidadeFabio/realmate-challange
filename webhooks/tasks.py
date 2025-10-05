@@ -7,7 +7,8 @@ from django.utils import timezone
 import logging
 
 from .services import ConversationService, MessageService
-from .models import MessageDirection
+from .models import MessageDirection, Message
+from .messaging_service import MessagingProvider, MessagingProviderException
 
 logger = logging.getLogger(__name__)
 
@@ -227,3 +228,122 @@ def simulate_peak_hour(duration_minutes=60, conversations_per_minute=5):
         'total_conversations': total_conversations,
         'average_per_minute': total_conversations / duration_minutes
     }
+
+
+@shared_task(bind=True, max_retries=3)
+def send_external_message(self, message_id: str, provider: str = 'whatsapp'):
+    try:
+        message = Message.objects.get(id=message_id)
+
+        if not message.conversation.contact or not message.conversation.contact.phone:
+            logger.warning(
+                f"Message {message_id} has no recipient phone number. Skipping external delivery."
+            )
+            return {
+                'message_id': str(message_id),
+                'status': 'skipped',
+                'reason': 'no_phone_number'
+            }
+
+        if message.direction != MessageDirection.SENT:
+            logger.info(
+                f"Message {message_id} is RECEIVED, not sending externally."
+            )
+            return {
+                'message_id': str(message_id),
+                'status': 'skipped',
+                'reason': 'not_outbound'
+            }
+
+        messaging_provider = MessagingProvider(provider=provider)
+
+        logger.info(
+            f"Sending message {message_id} to {message.conversation.contact.phone} "
+            f"via {provider}"
+        )
+
+        response = messaging_provider.send_message(
+            phone=message.conversation.contact.phone,
+            content=message.content,
+            message_type='text',
+            metadata={
+                'conversation_id': str(message.conversation_id),
+                'message_id': str(message.id),
+                'timestamp': message.timestamp.isoformat()
+            }
+        )
+
+        logger.info(
+            f"Message {message_id} sent successfully. "
+            f"Provider message_id: {response.get('message_id')}"
+        )
+
+        return {
+            'message_id': str(message_id),
+            'status': 'sent',
+            'provider_response': response,
+            'provider': provider
+        }
+
+    except Message.DoesNotExist:
+        logger.error(f"Message {message_id} not found in database")
+        return {
+            'message_id': str(message_id),
+            'status': 'error',
+            'reason': 'message_not_found'
+        }
+
+    except MessagingProviderException as e:
+        logger.error(
+            f"Provider error sending message {message_id}: {str(e)}"
+        )
+
+        raise self.retry(
+            exc=e,
+            countdown=2 ** self.request.retries * 60,
+            max_retries=3
+        )
+
+    except Exception as e:
+        logger.exception(
+            f"Unexpected error sending message {message_id}: {str(e)}"
+        )
+        return {
+            'message_id': str(message_id),
+            'status': 'error',
+            'reason': str(e)
+        }
+
+
+@shared_task
+def check_message_delivery_status(provider_message_id: str, provider: str = 'whatsapp'):
+    try:
+        messaging_provider = MessagingProvider(provider=provider)
+
+        logger.info(
+            f"Checking delivery status for {provider_message_id} on {provider}"
+        )
+
+        # TODO: Implement actual status checking
+        status_info = messaging_provider.get_message_status(provider_message_id)
+
+        logger.info(
+            f"Status for {provider_message_id}: {status_info.get('status')}"
+        )
+
+        return {
+            'provider_message_id': provider_message_id,
+            'status': status_info.get('status'),
+            'timestamp': status_info.get('timestamp'),
+            'provider': provider
+        }
+
+    except Exception as e:
+        logger.error(
+            f"Error checking status for {provider_message_id}: {str(e)}"
+        )
+        return {
+            'provider_message_id': provider_message_id,
+            'status': 'error',
+            'reason': str(e)
+        }

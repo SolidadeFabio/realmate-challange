@@ -5,9 +5,9 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
 
-from .models import Conversation, Message, ConversationStatus, MessageDirection
-from .services import ConversationService, MessageService, WebhookProcessor
-from .exceptions import (
+from webhooks.models import Conversation, Message, ConversationStatus, MessageDirection
+from webhooks.services import ConversationService, MessageService, WebhookProcessor
+from webhooks.exceptions import (
     ConversationNotFoundException,
     ConversationClosedException,
     InvalidWebhookDataException

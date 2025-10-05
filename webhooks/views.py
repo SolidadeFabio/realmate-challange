@@ -1,20 +1,26 @@
 import logging
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.generics import RetrieveAPIView, ListAPIView
+from rest_framework.generics import RetrieveAPIView, ListAPIView, ListCreateAPIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 
-from .models import Conversation, ConversationStatus
+from .models import Conversation, ConversationStatus, Contact
 from .serializers import (
     ConversationSerializer,
     ConversationListSerializer,
     WebhookEventSerializer,
-    MessageSerializer
+    MessageSerializer,
+    UserSerializer,
+    ContactSerializer
 )
 from .services import WebhookProcessor, ConversationService, MessageService
 from .exceptions import (
@@ -131,7 +137,7 @@ class ConversationListAPIView(ListAPIView):
 
     def post(self, request, *args, **kwargs):
         content = request.data.get('content', '').strip()
-        client_id = request.data.get('client_id')
+        contact_id = request.data.get('contact_id')
 
         if not content:
             return Response(
@@ -139,8 +145,16 @@ class ConversationListAPIView(ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        if not contact_id:
+            return Response(
+                {'error': 'Contact is required for new conversation'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         conversation_id = uuid.uuid4()
         message_id = uuid.uuid4()
+
+        author_user = request.user if request.user.is_authenticated else None
 
         try:
             conversation = ConversationService.create_conversation(
@@ -148,32 +162,28 @@ class ConversationListAPIView(ListAPIView):
                 timezone.now()
             )
 
-            message = MessageService.create_message(
+            if author_user:
+                conversation.assigned_user = author_user
+
+            if contact_id:
+                try:
+                    contact = Contact.objects.get(id=contact_id)
+                    conversation.contact = contact
+                except Contact.DoesNotExist:
+                    pass
+
+            conversation.save()
+
+            direction = 'SENT' if author_user else 'RECEIVED'
+
+            MessageService.create_message(
                 str(message_id),
                 str(conversation_id),
-                'SENT',
+                direction,
                 content,
-                timezone.now()
+                timezone.now(),
+                author_user=author_user
             )
-
-            if client_id:
-                channel_layer = get_channel_layer()
-                async_to_sync(channel_layer.group_send)(
-                    'conversations',
-                    {
-                        'type': 'new_message',
-                        'message': {
-                            'id': str(message.id),
-                            'conversation_id': str(message.conversation_id),
-                            'direction': message.direction,
-                            'content': message.content,
-                            'timestamp': message.timestamp.isoformat() if message.timestamp else None,
-                            'created_at': message.created_at.isoformat() if message.created_at else None,
-                            'client_id': client_id
-                        },
-                        'client_id': client_id
-                    }
-                )
 
             serializer = ConversationSerializer(conversation)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -241,5 +251,95 @@ class CloseConversationAPIView(APIView):
         except Conversation.DoesNotExist:
             return Response(
                 {'error': f'Conversation {conversation_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class RegisterView(APIView):
+    def post(self, request):
+        username = request.data.get('username')
+        email = request.data.get('email')
+        password = request.data.get('password')
+        first_name = request.data.get('first_name', '')
+        last_name = request.data.get('last_name', '')
+
+        if not username or not password:
+            return Response(
+                {'error': 'Username and password are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'error': 'Username already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if email and User.objects.filter(email=email).exists():
+            return Response(
+                {'error': 'Email already exists'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            validate_password(password)
+        except DjangoValidationError as e:
+            return Response(
+                {'error': 'Password validation failed', 'details': list(e.messages)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = User.objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            first_name=first_name,
+            last_name=last_name
+        )
+
+        serializer = UserSerializer(user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+
+class ContactListCreateView(ListCreateAPIView):
+    queryset = Contact.objects.all().order_by('-created_at')
+    serializer_class = ContactSerializer
+    permission_classes = []
+
+
+class AssignContactToConversationView(APIView):
+    def patch(self, request, conversation_id):
+        contact_id = request.data.get('contact_id')
+
+        try:
+            conversation = Conversation.objects.get(id=conversation_id)
+
+            if contact_id:
+                contact = Contact.objects.get(id=contact_id)
+                conversation.contact = contact
+            else:
+                conversation.contact = None
+
+            conversation.save()
+
+            serializer = ConversationSerializer(conversation)
+            return Response(serializer.data)
+
+        except Conversation.DoesNotExist:
+            return Response(
+                {'error': f'Conversation {conversation_id} not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Contact.DoesNotExist:
+            return Response(
+                {'error': f'Contact {contact_id} not found'},
                 status=status.HTTP_404_NOT_FOUND
             )

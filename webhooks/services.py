@@ -1,17 +1,10 @@
-"""
-Business logic services for webhook processing.
-
-This module contains the business logic separated from views,
-making it easier to test and maintain.
-"""
-
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 from django.db import transaction
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from .models import Conversation, Message, ConversationStatus, MessageDirection
+from .models import Conversation, Message, ConversationStatus
 from .exceptions import (
     ConversationClosedException,
     ConversationNotFoundException,
@@ -119,7 +112,8 @@ class MessageService:
         conversation_id: str,
         direction: str,
         content: str,
-        timestamp: datetime
+        timestamp: datetime,
+        author_user: Optional['User'] = None
     ) -> Message:
         if Message.objects.filter(id=message_id).exists():
             logger.warning(f"Message {message_id} already exists")
@@ -150,7 +144,8 @@ class MessageService:
             conversation=conversation,
             direction=direction,
             content=content,
-            timestamp=timestamp
+            timestamp=timestamp,
+            author_user=author_user
         )
 
         conversation.save(update_fields=['updated_at'])
@@ -160,17 +155,25 @@ class MessageService:
         )
 
         try:
+            message_data: Dict[str, Any] = {
+                'id': str(message.id),
+                'conversation': str(message.conversation_id),
+                'direction': message.direction,
+                'content': message.content,
+                'timestamp': message.timestamp.isoformat() if message.timestamp else None,
+                'author_user': {
+                    'id': author_user.id,
+                    'username': author_user.username,
+                    'first_name': author_user.first_name,
+                    'last_name': author_user.last_name
+                } if author_user else None
+            }
+
             async_to_sync(channel_layer.group_send)(
                 'conversations',
                 {
                     'type': 'new_message',
-                    'message': {
-                        'id': str(message.id),
-                        'conversation_id': str(message.conversation_id),
-                        'direction': message.direction,
-                        'content': message.content,
-                        'timestamp': message.timestamp.isoformat() if message.timestamp else None,
-                    }
+                    'message': message_data
                 }
             )
         except Exception as e:

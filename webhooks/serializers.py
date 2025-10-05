@@ -1,8 +1,25 @@
 from rest_framework import serializers
-from .models import Conversation, Message, MessageDirection
+from django.contrib.auth.models import User
+from .models import Conversation, Message, MessageDirection, Contact
+
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'email', 'first_name', 'last_name']
+        read_only_fields = ['id']
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Contact
+        fields = ['id', 'name', 'phone', 'email', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    author_user = UserSerializer(read_only=True)
+
     class Meta:
         model = Message
         fields = [
@@ -11,52 +28,62 @@ class MessageSerializer(serializers.ModelSerializer):
             'direction',
             'content',
             'timestamp',
+            'author_user',
+            'is_internal',
             'created_at'
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'author_user']
 
 
 class ConversationSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
+    contact = ContactSerializer(read_only=True)
+    assigned_user = UserSerializer(read_only=True)
 
     class Meta:
         model = Conversation
         fields = [
             'id',
             'status',
+            'contact',
+            'assigned_user',
             'created_at',
             'updated_at',
             'closed_at',
             'messages'
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'contact', 'assigned_user']
 
 
 class ConversationListSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     message_count = serializers.SerializerMethodField()
+    contact = ContactSerializer(read_only=True)
+    assigned_user = UserSerializer(read_only=True)
 
     class Meta:
         model = Conversation
         fields = [
             'id',
             'status',
+            'contact',
+            'assigned_user',
             'created_at',
             'updated_at',
             'closed_at',
             'message_count',
             'last_message'
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'contact', 'assigned_user']
 
     def get_last_message(self, obj):
-        last_message = obj.messages.order_by('-timestamp').first()
+        last_message = obj.messages.filter(is_internal=False).order_by('-timestamp').first()
         if last_message:
             return MessageSerializer(last_message).data
         return None
 
     def get_message_count(self, obj):
-        return obj.messages.count()
+        return obj.messages.filter(is_internal=False).count()
 
 
 class WebhookDataSerializer(serializers.Serializer):

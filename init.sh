@@ -31,6 +31,36 @@ else:
     print(f'Superuser {username} already exists')
 EOF
 
+echo "Creating test users..."
+poetry run python manage.py shell << EOF
+from django.contrib.auth import get_user_model
+User = get_user_model()
+
+# Criar usuário de teste 1
+if not User.objects.filter(username='usuario1').exists():
+    User.objects.create_user(
+        username='usuario1',
+        password='senha123',
+        first_name='João',
+        email='usuario1@example.com'
+    )
+    print('Test user created: usuario1 (senha: senha123)')
+else:
+    print('User usuario1 already exists')
+
+# Criar usuário de teste 2
+if not User.objects.filter(username='usuario2').exists():
+    User.objects.create_user(
+        username='usuario2',
+        password='senha123',
+        first_name='Maria',
+        email='usuario2@example.com'
+    )
+    print('Test user created: usuario2 (senha: senha123)')
+else:
+    print('User usuario2 already exists')
+EOF
+
 echo "Collecting static files..."
 poetry run python manage.py collectstatic --noinput || true
 
