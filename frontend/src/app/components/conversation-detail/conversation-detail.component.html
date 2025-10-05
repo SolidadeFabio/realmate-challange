@@ -8,9 +8,23 @@
   } @else {
     <div class="bg-white border-bottom p-3">
       <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h6 class="mb-0">Conversa #{{ conversation.id.substring(0, 8) }}</h6>
-          <div class="d-flex gap-3 mt-1">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <h6 class="mb-0">
+              @if (conversation.contact) {
+                {{ conversation.contact.name || conversation.contact.phone }}
+              } @else {
+                Desconhecido
+              }
+            </h6>
+            @if (!conversation.contact) {
+              <button class="btn btn-sm btn-outline-primary" (click)="onAssignContact()">
+                <i class="bi bi-person-plus"></i>
+                Vincular Contato
+              </button>
+            }
+          </div>
+          <div class="d-flex gap-3">
             <small class="text-muted">
               <i class="bi bi-circle-fill" [class.text-success]="conversation.status === 'OPEN'" [class.text-secondary]="conversation.status === 'CLOSED'"></i>
               {{ conversation.status === 'OPEN' ? 'Aberta' : 'Fechada' }}
@@ -19,6 +33,18 @@
               <i class="bi bi-chat-dots"></i>
               {{ conversation.messages?.length || 0 }} mensagens
             </small>
+            @if (conversation.contact && conversation.contact.email) {
+              <small class="text-muted">
+                <i class="bi bi-envelope"></i>
+                {{ conversation.contact.email }}
+              </small>
+            }
+            @if (conversation.contact && conversation.contact.phone) {
+              <small class="text-muted">
+                <i class="bi bi-telephone"></i>
+                {{ conversation.contact.phone }}
+              </small>
+            }
           </div>
         </div>
         @if (conversation.status === 'OPEN') {
@@ -31,14 +57,26 @@
     </div>
 
     <div class="messages-container flex-grow-1 overflow-auto p-3 bg-light">
-      @for (message of conversation.messages || []; track message.id) {
+      @for (message of getFilteredMessages(); track message.id) {
         <div class="mb-3 d-flex" [class.justify-content-end]="message.direction === 'SENT'">
           <div class="message-bubble" [ngClass]="{
-            'bg-primary text-white': message.direction === 'SENT',
-            'bg-white': message.direction === 'RECEIVED'
+            'bg-primary text-white': message.direction === 'SENT' && !message.is_internal,
+            'bg-warning': message.is_internal,
+            'bg-white': message.direction === 'RECEIVED' && !message.is_internal
           }">
+            @if (message.author_user && message.direction === 'SENT') {
+              <strong class="d-block mb-1" [class.text-white]="!message.is_internal">
+                {{ message.author_user.full_name || message.author_user.first_name || message.author_user.username }}
+              </strong>
+            }
+            @if (message.is_internal) {
+              <div class="d-flex align-items-center gap-1 mb-1">
+                <i class="bi bi-lock-fill small"></i>
+                <small>Mensagem Interna</small>
+              </div>
+            }
             <p class="mb-1">{{ message.content }}</p>
-            <small class="d-block" [class.text-white-50]="message.direction === 'SENT'" [class.text-muted]="message.direction === 'RECEIVED'">
+            <small class="d-block" [class.text-white-50]="message.direction === 'SENT' && !message.is_internal" [class.text-muted]="message.direction === 'RECEIVED' || message.is_internal">
               {{ formatTime(message.timestamp) }}
             </small>
           </div>
@@ -48,18 +86,27 @@
 
     @if (conversation.status === 'OPEN') {
       <div class="bg-white border-top p-3">
+        @if (canSendInternalMessages) {
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="isInternalMessage" id="internalCheck">
+            <label class="form-check-label text-warning" for="internalCheck">
+              <i class="bi bi-lock-fill"></i> Mensagem interna (visível apenas para funcionários)
+            </label>
+          </div>
+        }
         <form (submit)="onSendMessage($event)" class="d-flex gap-2">
           <input
             type="text"
             class="form-control"
-            placeholder="Digite sua mensagem..."
+            [placeholder]="isInternalMessage ? 'Digite mensagem interna...' : 'Digite sua mensagem...'"
             [(ngModel)]="newMessage"
             name="message"
             [disabled]="loading">
 
           <button
             type="submit"
-            class="btn btn-primary"
+            class="btn"
+            [ngClass]="isInternalMessage ? 'btn-warning' : 'btn-primary'"
             [disabled]="!newMessage || !newMessage.trim() || loading">
             <i class="bi bi-send"></i>
           </button>

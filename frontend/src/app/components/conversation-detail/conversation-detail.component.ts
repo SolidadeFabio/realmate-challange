@@ -14,11 +14,14 @@ import { ConfirmModalComponent } from '../confirm-modal/confirm-modal.component'
 export class ConversationDetailComponent {
   @Input() conversation: Conversation | null = null;
   @Input() loading: boolean = false;
-  @Output() sendMessage = new EventEmitter<string>();
+  @Input() canSendInternalMessages: boolean = false;
+  @Output() sendMessage = new EventEmitter<{content: string, isInternal: boolean}>();
   @Output() closeConversation = new EventEmitter<void>();
+  @Output() assignContact = new EventEmitter<void>();
 
   newMessage: string = '';
   showCloseModal = false;
+  isInternalMessage = false;
 
   onSendMessage(event: Event): void {
     event.preventDefault();
@@ -27,7 +30,10 @@ export class ConversationDetailComponent {
       return;
     }
 
-    this.sendMessage.emit(this.newMessage);
+    this.sendMessage.emit({
+      content: this.newMessage,
+      isInternal: this.isInternalMessage
+    });
     this.newMessage = '';
   }
 
@@ -44,6 +50,10 @@ export class ConversationDetailComponent {
 
   cancelClose(): void {
     this.showCloseModal = false;
+  }
+
+  onAssignContact(): void {
+    this.assignContact.emit();
   }
 
   formatTime(timestamp: string | null | undefined): string {
@@ -66,6 +76,16 @@ export class ConversationDetailComponent {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
     }, 100);
+  }
+
+  getFilteredMessages(): Message[] {
+    if (!this.conversation?.messages) return [];
+
+    if (!this.canSendInternalMessages) {
+      return this.conversation.messages.filter(msg => !msg.is_internal);
+    }
+
+    return this.conversation.messages;
   }
 
   ngOnChanges(): void {

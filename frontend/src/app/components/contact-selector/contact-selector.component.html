@@ -1,0 +1,93 @@
+@if (show) {
+  <div class="modal d-block" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Selecionar Contato</h5>
+          <button type="button" class="btn-close" (click)="onCancel()"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <input
+              type="text"
+              class="form-control"
+              placeholder="Buscar contato..."
+              [(ngModel)]="searchTerm"
+              autofocus
+            />
+          </div>
+
+          @if (filteredContacts.length === 0) {
+            <div class="text-center py-4 text-muted">
+              <i class="bi bi-person-x fs-1"></i>
+              <p class="mt-2">Nenhum contato encontrado</p>
+              <button class="btn btn-primary btn-sm" (click)="onNewContact()">
+                <i class="bi bi-person-plus"></i> Criar Novo Contato
+              </button>
+            </div>
+          } @else {
+            <div class="list-group mb-3" style="max-height: 300px; overflow-y: auto;">
+              @for (contact of filteredContacts; track contact.id) {
+                <button
+                  type="button"
+                  class="list-group-item list-group-item-action"
+                  [class.active]="selectedContactId === contact.id"
+                  (click)="selectContact(contact)"
+                >
+                  <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                      <h6 class="mb-1">
+                        {{ contact.name || 'Sem nome' }}
+                        @if (!contact.name && contact.phone) {
+                          <span class="text-muted">{{ contact.phone }}</span>
+                        }
+                      </h6>
+                      <div class="small">
+                        @if (contact.phone && contact.name) {
+                          <span class="text-muted">
+                            <i class="bi bi-telephone"></i> {{ contact.phone }}
+                          </span>
+                        }
+                        @if (contact.email) {
+                          <span class="text-muted ms-2">
+                            <i class="bi bi-envelope"></i> {{ contact.email }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+                    @if (selectedContactId === contact.id) {
+                      <i class="bi bi-check-circle-fill text-primary"></i>
+                    }
+                  </div>
+                </button>
+              }
+            </div>
+
+            <div class="d-flex justify-content-between">
+              <button class="btn btn-outline-primary btn-sm" (click)="onNewContact()">
+                <i class="bi bi-person-plus"></i> Novo Contato
+              </button>
+              <div class="text-muted small align-self-center">
+                {{ filteredContacts.length }} contatos
+              </div>
+            </div>
+          }
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="onCancel()">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="!selectedContactId"
+            (click)="onConfirm()"
+          >
+            Vincular Contato
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop fade show"></div>
+}

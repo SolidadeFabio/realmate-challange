@@ -1,0 +1,66 @@
+@if (show) {
+  <div class="modal d-block" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            {{ contact ? 'Editar Contato' : 'Novo Contato' }}
+          </h5>
+          <button type="button" class="btn-close" (click)="onCancel()"></button>
+        </div>
+        <form (ngSubmit)="onSubmit()">
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="name" class="form-label">Nome</label>
+              <input
+                type="text"
+                class="form-control"
+                id="name"
+                [(ngModel)]="formData.name"
+                name="name"
+                placeholder="Nome do contato"
+              />
+            </div>
+            <div class="mb-3">
+              <label for="phone" class="form-label">Telefone</label>
+              <input
+                type="text"
+                class="form-control"
+                id="phone"
+                [(ngModel)]="formData.phone"
+                name="phone"
+                placeholder="+55 11 99999-9999"
+              />
+            </div>
+            <div class="mb-3">
+              <label for="email" class="form-label">E-mail</label>
+              <input
+                type="email"
+                class="form-control"
+                id="email"
+                [(ngModel)]="formData.email"
+                name="email"
+                placeholder="email@exemplo.com"
+              />
+            </div>
+            @if (!isValid) {
+              <div class="alert alert-info small">
+                <i class="bi bi-info-circle"></i>
+                Preencha pelo menos o nome ou telefone
+              </div>
+            }
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" (click)="onCancel()">
+              Cancelar
+            </button>
+            <button type="submit" class="btn btn-primary" [disabled]="!isValid">
+              {{ contact ? 'Salvar' : 'Criar' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop fade show"></div>
+}

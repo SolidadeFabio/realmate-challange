@@ -2,15 +2,16 @@ import { Injectable, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Subject, timer } from 'rxjs';
 import { Conversation, Message, WebSocketMessage } from '../models/conversation.model';
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class WebSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
-  private readonly wsUrl = this.getWebSocketUrl();
+  private wsUrl: string = '';
   private readonly reconnectDelay = 3000;
-  private readonly clientId = this.generateClientId();
 
   private currentPage = 1;
   private hasMorePages = true;
@@ -33,7 +34,10 @@ export class WebSocketService implements OnDestroy {
   public readonly loadingMore$ = this.loadingMoreSubject.asObservable();
   public readonly success$ = this.successSubject.asObservable();
 
-  constructor(private apiService: ApiService) {
+  constructor(
+    private apiService: ApiService,
+    private authService: AuthService
+  ) {
     this.initialize();
   }
 
@@ -47,14 +51,11 @@ export class WebSocketService implements OnDestroy {
   }
 
   private getWebSocketUrl(): string {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname;
-    return `${protocol}//${host}:80/ws/conversations/`;
+    const token = this.authService.getAccessToken();
+    const baseUrl = `${environment.wsUrl}/conversations/`;
+    return token ? `${baseUrl}?token=${token}` : baseUrl;
   }
 
-  private generateClientId(): string {
-    return `client_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-  }
 
   private async loadInitialData(): Promise<void> {
     this.loadingSubject.next(true);
@@ -80,6 +81,7 @@ export class WebSocketService implements OnDestroy {
 
   private connect(): void {
     try {
+      this.wsUrl = this.getWebSocketUrl();
       this.socket = new WebSocket(this.wsUrl);
       this.setupSocketHandlers();
     } catch (error) {
@@ -145,44 +147,35 @@ export class WebSocketService implements OnDestroy {
 
   private handleNewMessage(message: Message): void {
     const currentConv = this.currentConversationSubject.value;
-    const isCurrentConversation = currentConv && currentConv.id === message.conversation_id;
-
-    const isOwnMessage = message.client_id === this.clientId;
-    const adjustedMessage = {
-      ...message,
-      direction: isOwnMessage ? message.direction : this.invertDirection(message.direction)
-    };
+    const isCurrentConversation = currentConv && currentConv.id === message.conversation;
 
     if (isCurrentConversation) {
       const updatedConversation = {
         ...currentConv,
-        messages: [...(currentConv.messages || []), adjustedMessage]
+        messages: [...(currentConv.messages || []), message]
       };
       this.currentConversationSubject.next(updatedConversation);
     }
 
     const conversations = this.conversationsSubject.value;
     const updatedConversations = conversations.map(conv => {
-      if (conv.id === message.conversation_id) {
+      if (conv.id === message.conversation) {
         const shouldIncrementUnread =
-          adjustedMessage.direction === 'RECEIVED' && !isCurrentConversation;
+          message.direction === 'RECEIVED' && !isCurrentConversation;
 
         return {
           ...conv,
-          last_message: adjustedMessage,
+          last_message: message,
           message_count: (conv.message_count || 0) + 1,
           unread_count: shouldIncrementUnread
             ? (conv.unread_count || 0) + 1
-            : (conv.unread_count || 0)
+            : (conv.unread_count || 0),
+          messages: [...(conv.messages || []), message]
         };
       }
       return conv;
     });
     this.conversationsSubject.next(updatedConversations);
-  }
-
-  private invertDirection(direction: 'SENT' | 'RECEIVED'): 'SENT' | 'RECEIVED' {
-    return direction === 'SENT' ? 'RECEIVED' : 'SENT';
   }
 
   private addNewConversation(conversation: Conversation): void {
@@ -221,14 +214,22 @@ export class WebSocketService implements OnDestroy {
     this.resetUnreadCount(conversationId);
 
     try {
+      const conversations = this.conversationsSubject.value;
+      const existingConv = conversations.find(c => c.id === conversationId);
+
       const response = await this.apiService.getConversationMessages(conversationId);
+
       const conversation: Conversation = {
         id: conversationId,
         status: response.status,
+        contact: existingConv?.contact || response.contact || null,
+        assigned_user: existingConv?.assigned_user || response.assigned_user || null,
         created_at: response.created_at,
         updated_at: response.updated_at,
         closed_at: response.closed_at,
-        messages: response.messages,
+        messages: existingConv?.messages?.length
+          ? existingConv.messages
+          : this.adjustMessagesDirection(response.messages),
         unread_count: 0
       };
       this.currentConversationSubject.next(conversation);
@@ -237,6 +238,10 @@ export class WebSocketService implements OnDestroy {
     } finally {
       this.conversationLoadingSubject.next(false);
     }
+  }
+
+  private adjustMessagesDirection(messages: Message[]): Message[] {
+    return messages;
   }
 
   private resetUnreadCount(conversationId: string): void {
@@ -250,7 +255,7 @@ export class WebSocketService implements OnDestroy {
     this.conversationsSubject.next(updatedConversations);
   }
 
-  public sendMessage(conversationId: string, content: string): void {
+  public sendMessage(conversationId: string, content: string, isInternal: boolean = false): void {
     if (!content.trim()) return;
 
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
@@ -262,7 +267,7 @@ export class WebSocketService implements OnDestroy {
       type: 'send_message',
       conversation_id: conversationId,
       content: content.trim(),
-      client_id: this.clientId
+      is_internal: isInternal
     };
 
     try {
@@ -335,10 +340,11 @@ export class WebSocketService implements OnDestroy {
     return this.hasMorePages;
   }
 
-  public async createConversation(content: string): Promise<void> {
+  public async createConversation(content: string, contactId?: string): Promise<void> {
     this.loadingSubject.next(true);
     try {
-      await this.apiService.createConversation(content, this.clientId);
+      await this.apiService.createConversation(content, contactId);
+      await this.loadInitialData();
       this.successSubject.next('Conversa criada com sucesso');
     } catch (error) {
       this.errorSubject.next('Failed to create conversation');

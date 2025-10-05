@@ -2,12 +2,11 @@ import { Component, Input, Output, EventEmitter, OnInit, OnChanges, SimpleChange
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Conversation } from '../../models/conversation.model';
-import { NewConversationModalComponent } from '../new-conversation-modal/new-conversation-modal.component';
 
 @Component({
   selector: 'app-conversation-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, NewConversationModalComponent],
+  imports: [CommonModule, FormsModule],
   templateUrl: './conversation-list.component.html',
   styleUrls: ['./conversation-list.component.css']
 })
@@ -21,14 +20,13 @@ export class ConversationListComponent implements OnInit, OnChanges, AfterViewCh
   @Output() conversationSelected = new EventEmitter<Conversation>();
   @Output() refresh = new EventEmitter<void>();
   @Output() loadMore = new EventEmitter<void>();
-  @Output() newConversation = new EventEmitter<string>();
+  @Output() newConversation = new EventEmitter<void>();
 
   @ViewChild('listContainer') listContainer?: ElementRef;
 
   filteredConversations: Conversation[] = [];
   searchTerm: string = '';
   statusFilter: string = '';
-  showNewConversationModal = false;
   private shouldScrollToSelected = false;
 
   ngOnInit(): void {
@@ -137,15 +135,6 @@ export class ConversationListComponent implements OnInit, OnChanges, AfterViewCh
   }
 
   onNewConversation(): void {
-    this.showNewConversationModal = true;
-  }
-
-  onConversationCreated(content: string): void {
-    this.showNewConversationModal = false;
-    this.newConversation.emit(content);
-  }
-
-  onNewConversationCancelled(): void {
-    this.showNewConversationModal = false;
+    this.newConversation.emit();
   }
 }

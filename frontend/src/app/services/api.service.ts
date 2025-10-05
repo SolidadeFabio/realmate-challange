@@ -1,36 +1,47 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { Conversation } from '../models/conversation.model';
+import {
+  ConversationListResponse,
+  ConversationMessagesResponse,
+  CreateConversationRequest
+} from '../models/api-responses.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly apiUrl = 'http://localhost:80/api';
+  private readonly apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
-  async getConversations(page: number = 1): Promise<any> {
+  async getConversations(page: number = 1): Promise<ConversationListResponse> {
     return firstValueFrom(
-      this.http.get<any>(`${this.apiUrl}/conversations/?page=${page}`)
+      this.http.get<ConversationListResponse>(`${this.apiUrl}/conversations/?page=${page}`)
     );
   }
 
-  async getConversationMessages(conversationId: string): Promise<any> {
+  async getConversationMessages(conversationId: string): Promise<ConversationMessagesResponse> {
     return firstValueFrom(
-      this.http.get<any>(`${this.apiUrl}/conversations/${conversationId}/messages/`)
+      this.http.get<ConversationMessagesResponse>(`${this.apiUrl}/conversations/${conversationId}/messages/`)
     );
   }
 
-  async closeConversation(conversationId: string): Promise<any> {
+  async closeConversation(conversationId: string): Promise<Conversation> {
     return firstValueFrom(
-      this.http.post<any>(`${this.apiUrl}/conversations/${conversationId}/close/`, {})
+      this.http.post<Conversation>(`${this.apiUrl}/conversations/${conversationId}/close/`, {})
     );
   }
 
-  async createConversation(content: string, clientId: string): Promise<any> {
+  async createConversation(content: string, contactId?: string): Promise<Conversation> {
+    const body: CreateConversationRequest = { content };
+    if (contactId) {
+      body.contact_id = contactId;
+    }
     return firstValueFrom(
-      this.http.post<any>(`${this.apiUrl}/conversations/`, { content, client_id: clientId })
+      this.http.post<Conversation>(`${this.apiUrl}/conversations/`, body)
     );
   }
 }

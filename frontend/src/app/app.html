@@ -1,29 +1,5 @@
-<div class="app-container">
-  <div class="row g-0 h-100">
-    <div class="col-md-4 col-lg-3 border-end h-100">
-      <app-conversation-list
-        [conversations]="conversations"
-        [selectedConversationId]="selectedConversation?.id || null"
-        [connectionStatus]="connectionStatus"
-        [loading]="loading"
-        [loadingMore]="loadingMore"
-        [hasMore]="hasMore"
-        (conversationSelected)="onConversationSelected($event)"
-        (refresh)="onRefresh()"
-        (loadMore)="onLoadMore()"
-        (newConversation)="onNewConversation($event)">
-      </app-conversation-list>
-    </div>
+<app-navbar></app-navbar>
 
-    <div class="col-md-8 col-lg-9 h-100">
-      <app-conversation-detail
-        [conversation]="selectedConversation"
-        [loading]="loading"
-        (sendMessage)="onSendMessage($event)"
-        (closeConversation)="onCloseConversation()">
-      </app-conversation-detail>
-    </div>
-  </div>
-</div>
+<router-outlet></router-outlet>
 
 <app-toast></app-toast>

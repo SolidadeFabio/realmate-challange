@@ -7,16 +7,42 @@
           <button type="button" class="btn-close" (click)="onCancel()"></button>
         </div>
         <div class="modal-body">
-          <label for="messageContent" class="form-label">Primeira mensagem</label>
-          <textarea
-            id="messageContent"
-            class="form-control"
-            rows="3"
-            placeholder="Digite a primeira mensagem..."
-            [(ngModel)]="content"
-            name="content"
-            autofocus>
-          </textarea>
+          <div class="mb-3">
+            <label class="form-label">Contato *</label>
+            <div class="input-group">
+              <input
+                type="text"
+                class="form-control"
+                [value]="selectedContact ? (selectedContact.name || selectedContact.phone || 'Sem nome') : ''"
+                placeholder="Selecione um contato..."
+                readonly
+                style="cursor: pointer;"
+                (click)="onSelectContact()">
+              <button class="btn btn-outline-secondary" type="button" (click)="onSelectContact()">
+                <i class="bi bi-person-lines-fill"></i>
+              </button>
+              @if (selectedContact) {
+                <button class="btn btn-outline-danger" type="button" (click)="clearContact()">
+                  <i class="bi bi-x"></i>
+                </button>
+              }
+            </div>
+            @if (!selectedContact) {
+              <small class="text-danger">* Obrigatório: Selecione um contato para criar a conversa</small>
+            }
+          </div>
+
+          <div>
+            <label for="messageContent" class="form-label">Primeira mensagem</label>
+            <textarea
+              id="messageContent"
+              class="form-control"
+              rows="3"
+              placeholder="Digite a primeira mensagem..."
+              [(ngModel)]="content"
+              name="content">
+            </textarea>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="onCancel()">
@@ -26,7 +52,7 @@
             type="button"
             class="btn btn-primary"
             (click)="onCreate()"
-            [disabled]="!content || !content.trim()">
+            [disabled]="!content || !content.trim() || !selectedContact">
             Criar Conversa
           </button>
         </div>

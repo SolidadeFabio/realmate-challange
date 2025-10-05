@@ -1,0 +1,51 @@
+<div class="container-fluid p-0" style="height: calc(100vh - 56px);">
+  <div class="row g-0 h-100">
+    <div class="col-md-4 col-lg-3 border-end h-100">
+      <app-conversation-list
+        [conversations]="conversations"
+        [selectedConversationId]="selectedConversation?.id || null"
+        [connectionStatus]="connectionStatus"
+        [loading]="loading"
+        [loadingMore]="loadingMore"
+        [hasMore]="hasMore"
+        (conversationSelected)="onConversationSelected($event)"
+        (refresh)="onRefresh()"
+        (loadMore)="onLoadMore()"
+        (newConversation)="onNewConversation()">
+      </app-conversation-list>
+    </div>
+
+    <div class="col-md-8 col-lg-9 h-100">
+      <app-conversation-detail
+        [conversation]="selectedConversation"
+        [loading]="loading"
+        [canSendInternalMessages]="canSendInternalMessages"
+        (sendMessage)="onSendMessage($event)"
+        (closeConversation)="onCloseConversation()"
+        (assignContact)="onAssignContact()">
+      </app-conversation-detail>
+    </div>
+  </div>
+</div>
+
+<app-new-conversation-modal
+  #newConversationModal
+  [show]="showNewConversationModal"
+  (created)="onNewConversationCreated($event)"
+  (cancelled)="onNewConversationCancelled()"
+  (selectContact)="onSelectContactForNewConversation()">
+</app-new-conversation-modal>
+
+<app-contact-selector
+  [show]="showContactSelector"
+  (contactSelected)="onContactSelected($event)"
+  (newContact)="onNewContactFromSelector()"
+  (cancel)="onCancelContactSelector()">
+</app-contact-selector>
+
+<app-contact-modal
+  [show]="showContactModal"
+  [contact]="editingContact"
+  (save)="onSaveContact($event)"
+  (cancel)="onCancelContactModal()">
+</app-contact-modal>

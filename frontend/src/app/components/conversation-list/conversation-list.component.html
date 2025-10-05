@@ -58,7 +58,9 @@
           (click)="selectConversation(conversation)">
 
           <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="fw-semibold small">{{ conversation.id.substring(0, 8) }}</span>
+            <span class="fw-semibold small">
+              {{ conversation.contact?.name || conversation.contact?.phone || 'Desconhecido' }}
+            </span>
             <span class="text-muted small">
               {{ formatTime(conversation.last_message?.timestamp) }}
             </span>
@@ -99,9 +101,3 @@
     }
   </div>
 </div>
-
-<app-new-conversation-modal
-  [show]="showNewConversationModal"
-  (created)="onConversationCreated($event)"
-  (cancelled)="onNewConversationCancelled()">
-</app-new-conversation-modal>

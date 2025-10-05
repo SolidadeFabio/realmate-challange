@@ -18,50 +18,51 @@ docker compose up --build -d
 - **Django Admin**: http://localhost/admin
 - **Flower (Celery Monitor)**: http://localhost:5555
 
+### 3. Initial Setup (Automatic)
+
+The application automatically creates:
+- **Admin User**: `admin` / `admin123`
+- **User 1**: `usuario1` / `senha123`
+- **User 2**: `usuario2` / `senha123`
+
+These users are created during the first startup via the `init.sh` script.
+
 ---
 
-## Populate Database
+## Recommended Demo Flow
 
-### Interactive Command
+### See WebSocket in Real-Time
+
+**Experience the real-time WebSocket functionality:**
+
+1. **Open two browser windows side-by-side:**
+   - Window 1: http://localhost:8000 (login as `usuario1`)
+   - Window 2: http://localhost:8000 (login as `usuario2`)
+
+2. **In a terminal, run:**
+   ```bash
+   docker compose exec web python manage.py populate_db
+   ```
+
+
+---
+
+## Authentication & Users
+
+### Default Credentials
+
+| User | Username | Password | Role |
+|------|----------|----------|------|
+| Admin | `admin` | `admin123` | Superuser |
+| User 1 | `usuario1` | `password123` | Staff Member |
+| User 2 | `usuario2` | `password123` | Staff Member |
+
+
+---
+
+## Running Automated Tests
+
+### All Tests (66 tests)
 ```bash
-docker compose exec web python manage.py populate_db
+docker compose exec web python manage.py test
 ```
-
-This command provides an interactive CLI with 3 modes:
-
-#### **1. Batch Mode** (Recommended for large datasets)
-- Creates conversations in organized batches
-- Efficient for 100+ conversations
-- Uses Celery task distribution
-
-**Example:**
-```
-How many conversations to create? 500
-Conversations per batch? 50
-→ Creates 10 batches of 50 conversations each
-```
-
-#### **2. Concurrent Mode** (Maximum parallelism)
-- Creates all conversations simultaneously
-- Best for testing Celery worker performance
-- Uses Celery groups
-
-**Example:**
-```
-How many conversations to create? 100
-→ Dispatches 100 tasks in parallel
-```
-
-#### **3. Peak Hour Simulation** (Stress testing)
-- Simulates real-world traffic patterns
-- Creates conversations over time
-- Useful for testing WebSocket scaling
-
-**Example:**
-```
-Peak duration in minutes? 30
-Conversations per minute? 10
-→ Creates ~300 conversations over 30 minutes
-```
-
----

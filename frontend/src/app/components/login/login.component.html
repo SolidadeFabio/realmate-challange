@@ -1,0 +1,77 @@
+<div class="login-container d-flex align-items-center justify-content-center p-3">
+  <div class="login-card card shadow-lg" style="max-width: 450px; width: 100%;">
+    <div class="card-body p-4">
+      <h2 class="text-center mb-4">{{ isLoginMode() ? 'Login' : 'Criar Conta' }}</h2>
+
+      <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+        <div class="mb-3">
+          <label for="username" class="form-label">Usuário *</label>
+          <input
+            type="text"
+            class="form-control"
+            id="username"
+            name="username"
+            [(ngModel)]="username"
+            required
+            [disabled]="isLoading()"
+            autocomplete="username"
+          />
+        </div>
+
+        @if (!isLoginMode()) {
+          <div class="mb-3">
+            <label for="firstName" class="form-label">Nome *</label>
+            <input
+              type="text"
+              class="form-control"
+              id="firstName"
+              name="firstName"
+              [(ngModel)]="firstName"
+              required
+              [disabled]="isLoading()"
+              autocomplete="given-name"
+            />
+          </div>
+        }
+
+        <div class="mb-3">
+          <label for="password" class="form-label">Senha *</label>
+          <input
+            type="password"
+            class="form-control"
+            id="password"
+            name="password"
+            [(ngModel)]="password"
+            required
+            [disabled]="isLoading()"
+            autocomplete="{{ isLoginMode() ? 'current-password' : 'new-password' }}"
+          />
+        </div>
+
+        @if (!isLoginMode()) {
+          <div class="mb-3">
+            <label for="confirmPassword" class="form-label">Confirmar Senha *</label>
+            <input
+              type="password"
+              class="form-control"
+              id="confirmPassword"
+              name="confirmPassword"
+              [(ngModel)]="confirmPassword"
+              required
+              [disabled]="isLoading()"
+              autocomplete="new-password"
+            />
+          </div>
+        }
+
+        <button type="submit" class="btn btn-primary w-100 mb-2" [disabled]="isLoading() || !loginForm.valid">
+          {{ isLoading() ? 'Aguarde...' : (isLoginMode() ? 'Entrar' : 'Registrar') }}
+        </button>
+
+        <button type="button" class="btn btn-link w-100" (click)="toggleMode()" [disabled]="isLoading()">
+          {{ isLoginMode() ? 'Criar uma conta' : 'Já tenho conta' }}
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
